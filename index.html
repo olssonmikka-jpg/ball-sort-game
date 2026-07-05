@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1c3547">
+<link rel="manifest" href="manifest.json">
+<title>Ball Sort</title>
+<style>
+  :root{
+    --bg-top:#1c3547;
+    --bg-bottom:#142633;
+    --tube-bg:rgba(8,20,30,0.55);
+    --tube-border:rgba(160,210,235,0.55);
+    --tube-border-selected:#ffe066;
+    --accent:#7ec8e3;
+    --text:#eaf4fa;
+    --muted:#9fb7c6;
+    --ball:44px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:linear-gradient(180deg,var(--bg-top),var(--bg-bottom));
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden;
+    overscroll-behavior:none;
+    user-select:none;
+  }
+  #app{
+    display:flex; flex-direction:column; height:100%;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px 6px;
+    flex-shrink:0;
+  }
+  header .title{font-size:20px; font-weight:700; letter-spacing:.3px;}
+  header .stat{font-size:13px; color:var(--muted); text-align:center;}
+  header .stat b{color:var(--text); font-size:15px; display:block;}
+  .icon-btn{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.15);
+    color:var(--text);
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px; cursor:pointer;
+  }
+  .icon-btn:active{background:rgba(255,255,255,0.2);}
+
+  #board{
+    flex:1;
+    display:grid;
+    grid-template-columns:repeat(7, 1fr);
+    grid-auto-rows:max-content;
+    justify-items:center;
+    align-content:center;
+    gap:12px 4px;
+    padding:6px 8px;
+    overflow:hidden;
+    min-height:0;
+  }
+
+  .tube{
+    --cap:4;
+    width:calc(var(--ball) + 12px);
+    height:calc(var(--cap) * (var(--ball) + 6px) + 14px);
+    background:var(--tube-bg);
+    border:2px solid var(--tube-border);
+    border-radius:10px 10px 26px 26px;
+    display:flex; flex-direction:column-reverse; justify-content:flex-start; align-items:center;
+    padding:6px 5px;
+    gap:4px;
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    position:relative;
+  }
+  .tube::before{
+    content:"";
+    position:absolute; top:-8px; left:-4px; right:-4px; height:10px;
+    border-radius:6px 6px 0 0;
+    background:rgba(255,255,255,0.07);
+    border:1px solid var(--tube-border);
+    border-bottom:none;
+  }
+  .tube.selected{
+    transform:translateY(-16px);
+    border-color:var(--tube-border-selected);
+    box-shadow:0 0 16px rgba(255,224,102,0.5);
+  }
+  .tube.invalid{ animation:shake .3s ease; }
+  .tube.solved{
+    border-color:#7cf0a0;
+    box-shadow:0 0 14px rgba(124,240,160,0.55);
+  }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);}
+    25%{transform:translateX(-6px);}
+    75%{transform:translateX(6px);}
+  }
+
+  .ball{
+    width:var(--ball); height:var(--ball); border-radius:50%;
+    flex-shrink:0;
+    box-shadow:inset 0 -4px 6px rgba(0,0,0,0.25), 0 2px 3px rgba(0,0,0,0.3);
+  }
+
+  footer{
+    flex-shrink:0;
+    display:flex; justify-content:center; gap:18px;
+    padding:10px 16px calc(14px + env(safe-area-inset-bottom));
+  }
+  .ctrl{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:16px;
+    padding:10px 16px;
+    min-width:64px;
+    cursor:pointer;
+    color:var(--text);
+  }
+  .ctrl:active{background:rgba(255,255,255,0.15);}
+  .ctrl span.ico{font-size:20px;}
+  .ctrl span.lbl{font-size:11px; color:var(--muted);}
+  .ctrl.disabled{opacity:.35; pointer-events:none;}
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(5,12,18,0.75);
+    display:flex; align-items:center; justify-content:center;
+    z-index:50; padding:20px;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal{
+    background:#1e3a4d; border:1px solid rgba(255,255,255,0.15);
+    border-radius:18px; padding:26px 24px; max-width:340px; width:100%;
+    text-align:center;
+  }
+  .modal h2{margin:0 0 8px; font-size:22px;}
+  .modal p{color:var(--muted); font-size:14px; line-height:1.5; margin:0 0 18px;}
+  .modal button{
+    background:#fff; color:#173040; border:none; border-radius:14px;
+    font-size:16px; font-weight:700; padding:13px; width:100%; cursor:pointer;
+  }
+  .modal button.secondary{
+    background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.3);
+    margin-top:10px;
+  }
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="icon-btn" id="helpBtn">?</button>
+    <div class="stat">Level<b id="levelNum">1</b></div>
+    <div class="title">Ball Sort</div>
+    <div class="stat">Moves<b id="moveNum">0</b></div>
+    <button class="icon-btn" id="restartBtn">&#8635;</button>
+  </header>
+
+  <main id="board"></main>
+
+  <footer>
+    <div class="ctrl" id="restartBtn2"><span class="ico">&#8635;</span><span class="lbl">Restart</span></div>
+    <div class="ctrl" id="addTubeBtn"><span class="ico">&#43;</span><span class="lbl">Tube</span></div>
+    <div class="ctrl" id="newBtn"><span class="ico">&#127922;</span><span class="lbl">Shuffle</span></div>
+    <div class="ctrl" id="undoBtn"><span class="ico">&#8630;</span><span class="lbl">Undo</span></div>
+  </footer>
+</div>
+
+<div class="modal-overlay hidden" id="winModal">
+  <div class="modal">
+    <h2>Level Complete! 🎉</h2>
+    <p id="winMoves">Solved in 0 moves.</p>
+    <button id="nextBtn">Next Level</button>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="helpModal">
+  <div class="modal">
+    <h2>How to play</h2>
+    <p>Sort candies by color into each tube. You can only place a candy on top of an empty tube or on top of a matching color. Tap a tube to pick up its top candies, then tap another tube to drop them.</p>
+    <button id="closeHelp">Continue playing</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var PALETTE = [
+    "#178a4d","#38c6e8","#b28dea","#f2d94e","#c9ced6","#f27bb0",
+    "#e5453c","#8a5a34","#f2932f","#3f6fe0","#7be27a","#7c3fe0",
+    "#e05fc4","#5fe0c4"
+  ];
+  var CAPACITY = 4;
+  var STORAGE_KEY = "ballsort-save-v1";
+
+  var state = { level:1, tubes:[], initial:[], history:[], selected:null, moves:0 };
+
+  var boardEl = document.getElementById("board");
+  var levelNumEl = document.getElementById("levelNum");
+  var moveNumEl = document.getElementById("moveNum");
+  var undoBtn = document.getElementById("undoBtn");
+  var winModal = document.getElementById("winModal");
+  var winMoves = document.getElementById("winMoves");
+  var helpModal = document.getElementById("helpModal");
+
+  window.addEventListener("error", function(e){
+    try{
+      boardEl.innerHTML = "<div style='color:#ffb3b3;padding:20px;font-size:13px;text-align:left;white-space:pre-wrap;width:100%;'>Script error:\n" +
+        (e.message||"") + "\nat " + (e.filename||"") + ":" + (e.lineno||"") + "</div>";
+    }catch(_){}
+  });
+
+  function deepClone(t){ return t.map(function(a){ return a.slice(); }); }
+
+  function getTopRun(tube){
+    if(tube.length===0) return {color:null, count:0};
+    var color = tube[tube.length-1];
+    var count = 0;
+    for(var i=tube.length-1;i>=0;i--){
+      if(tube[i]===color) count++; else break;
+    }
+    return {color:color, count:count};
+  }
+
+  function getPossibleMoves(tubes){
+    var moves = [];
+    for(var i=0;i<tubes.length;i++){
+      if(tubes[i].length===0) continue;
+      var run = getTopRun(tubes[i]);
+      for(var j=0;j<tubes.length;j++){
+        if(i===j) continue;
+        var room = CAPACITY - tubes[j].length;
+        if(room<=0) continue;
+        if(tubes[j].length>0 && tubes[j][tubes[j].length-1]!==run.color) continue;
+        var maxCount = Math.min(run.count, room);
+        if(maxCount<1) continue;
+        moves.push({from:i, to:j, maxCount:maxCount});
+      }
+    }
+    return moves;
+  }
+
+  function isSolved(tubes){
+    for(var i=0;i<tubes.length;i++){
+      var t = tubes[i];
+      if(t.length===0) continue;
+      if(t.length!==CAPACITY) return false;
+      var c = t[0];
+      for(var k=1;k<t.length;k++){ if(t[k]!==c) return false; }
+    }
+    return true;
+  }
+
+  // Deals `numColors` sets of CAPACITY balls into `filledCount` tubes at random
+  // (each tube seeded with 1 ball first so none of them start empty), then
+  // appends `emptyCount` empty tubes at the end (bottom-right of the grid).
+  function dealRandomTubes(numColors, filledCount, emptyCount){
+    var balls = [];
+    for(var c=0;c<numColors;c++){ for(var k=0;k<CAPACITY;k++) balls.push(c); }
+    for(var i=balls.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var tmp = balls[i]; balls[i]=balls[j]; balls[j]=tmp;
+    }
+    var tubes = [];
+    for(var t=0;t<filledCount;t++) tubes.push([balls.pop()]);
+    while(balls.length>0){
+      var candidates = [];
+      for(var t2=0;t2<filledCount;t2++){ if(tubes[t2].length<CAPACITY) candidates.push(t2); }
+      var pick = candidates[Math.floor(Math.random()*candidates.length)];
+      tubes[pick].push(balls.pop());
+    }
+    for(var e=0;e<emptyCount;e++) tubes.push([]);
+    return tubes;
+  }
+
+  // Number of maximal same-color runs across all tubes. 0 at a fully solved
+  // board's minimum (one run per non-empty tube); used to guide the solver
+  // toward progress instead of exploring blindly.
+  function fragmentCount(tubes){
+    var frag = 0;
+    for(var i=0;i<tubes.length;i++){
+      var t = tubes[i];
+      for(var k=0;k<t.length;k++){ if(k===0 || t[k]!==t[k-1]) frag++; }
+    }
+    return frag;
+  }
+
+  function tubesKey(tubes){ return tubes.map(function(t){ return t.join(","); }).join("|"); }
+
+  // Greedy best-first search (always expand the state with fewest color
+  // fragments) to check whether `startTubes` can be legally solved. This is
+  // what guarantees every generated board is actually playable.
+  function isSolvable(startTubes, maxIter){
+    var visited = {};
+    visited[tubesKey(startTubes)] = true;
+    var frontier = [{tubes:startTubes, h:fragmentCount(startTubes)}];
+    var iter = 0;
+    while(frontier.length>0 && iter<maxIter){
+      iter++;
+      var bestIdx = 0;
+      for(var f=1;f<frontier.length;f++){ if(frontier[f].h<frontier[bestIdx].h) bestIdx=f; }
+      var cur = frontier.splice(bestIdx,1)[0];
+      if(isSolved(cur.tubes)) return true;
+      var ms = getPossibleMoves(cur.tubes);
+      for(var m=0;m<ms.length;m++){
+        var mv = ms[m];
+        var next = deepClone(cur.tubes);
+        for(var k=0;k<mv.maxCount;k++){ next[mv.to].push(next[mv.from].pop()); }
+        var kk = tubesKey(next);
+        if(!visited[kk]){ visited[kk]=true; frontier.push({tubes:next, h:fragmentCount(next)}); }
+      }
+    }
+    return false;
+  }
+
+  function generateSolvableTubes(numColors, emptyCount){
+    for(var attempt=0; attempt<80; attempt++){
+      var tubes = dealRandomTubes(numColors, FILLED_TUBES, emptyCount);
+      if(!isSolved(tubes) && isSolvable(tubes, 4000)) return tubes;
+    }
+    // Extremely unlikely fallback: just hand back the last deal.
+    return dealRandomTubes(numColors, FILLED_TUBES, emptyCount);
+  }
+
+  var TOTAL_TUBES = 14;
+  var FILLED_TUBES = 12;
+  var NUM_COLORS = 12;
+
+  function paramsForLevel(level){
+    return {numColors:NUM_COLORS, emptyTubes:TOTAL_TUBES - FILLED_TUBES};
+  }
+
+  function newLevel(levelNum){
+    var p = paramsForLevel(levelNum);
+    state.level = levelNum;
+    state.tubes = generateSolvableTubes(p.numColors, p.emptyTubes);
+    state.initial = deepClone(state.tubes);
+    state.history = [];
+    state.selected = null;
+    state.moves = 0;
+    save();
+    render();
+  }
+
+  function save(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        level:state.level, tubes:state.tubes, initial:state.initial, moves:state.moves
+      }));
+    }catch(e){}
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return false;
+      var data = JSON.parse(raw);
+      if(!data || !data.tubes) return false;
+      state.level = data.level || 1;
+      state.tubes = data.tubes;
+      state.initial = data.initial || deepClone(data.tubes);
+      state.moves = data.moves || 0;
+      state.history = [];
+      state.selected = null;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function render(){
+    levelNumEl.textContent = state.level;
+    moveNumEl.textContent = state.moves;
+    undoBtn.classList.toggle("disabled", state.history.length===0);
+
+    boardEl.innerHTML = "";
+    state.tubes.forEach(function(tube, idx){
+      var tEl = document.createElement("div");
+      tEl.className = "tube";
+      if(idx===state.selected) tEl.classList.add("selected");
+      if(tube.length===CAPACITY){
+        var c0 = tube[0], uni = true;
+        for(var i=1;i<tube.length;i++){ if(tube[i]!==c0){uni=false;break;} }
+        if(uni) tEl.classList.add("solved");
+      }
+      tube.forEach(function(colorIdx){
+        var b = document.createElement("div");
+        b.className = "ball";
+        b.style.background = PALETTE[colorIdx % PALETTE.length];
+        tEl.appendChild(b);
+      });
+      tEl.addEventListener("click", function(){ onTubeTap(idx); });
+      boardEl.appendChild(tEl);
+    });
+    fitBoard();
+  }
+
+  function fitBoard(){
+    var cols = 7;
+    var rows = Math.max(1, Math.ceil(state.tubes.length / cols));
+    var w = boardEl.clientWidth;
+    var h = boardEl.clientHeight;
+    if(w<=0 || h<=0) return;
+    var colGap = 4, rowGap = 12;
+    var boardPadX = 16, boardPadY = 12; // #board padding: 6px 8px
+    var tubeHPad = 12;   // .tube horizontal padding+border allowance
+    var tubeVPad = 14;   // .tube fixed vertical allowance (rim+padding)
+    var ballGap = 6;     // per-ball vertical allowance (gap + slot overhead)
+
+    var maxBallW = (w - boardPadX - colGap*(cols-1)) / cols - tubeHPad;
+    var perRowH = (h - boardPadY - rowGap*(rows-1)) / rows;
+    var maxBallH = (perRowH - tubeVPad) / CAPACITY - ballGap;
+
+    var ballSize = Math.floor(Math.min(maxBallW, maxBallH));
+    ballSize = Math.max(16, Math.min(ballSize, 46));
+    document.documentElement.style.setProperty("--ball", ballSize + "px");
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(fitBoard, 100);
+  });
+
+  function flashInvalid(idx){
+    var tEl = boardEl.children[idx];
+    if(!tEl) return;
+    tEl.classList.add("invalid");
+    setTimeout(function(){ tEl.classList.remove("invalid"); }, 300);
+  }
+
+  function tryMove(from, to){
+    var tubes = state.tubes;
+    var run = getTopRun(tubes[from]);
+    if(run.count===0) return false;
+    var room = CAPACITY - tubes[to].length;
+    if(room<=0) return false;
+    if(tubes[to].length>0 && tubes[to][tubes[to].length-1]!==run.color) return false;
+
+    state.history.push(deepClone(tubes));
+    var moveCount = Math.min(run.count, room);
+    for(var k=0;k<moveCount;k++){
+      tubes[to].push(tubes[from].pop());
+    }
+    state.moves++;
+    return true;
+  }
+
+  function onTubeTap(idx){
+    if(state.selected===null){
+      if(state.tubes[idx].length>0) state.selected = idx;
+      render();
+      return;
+    }
+    if(state.selected===idx){
+      state.selected = null;
+      render();
+      return;
+    }
+    var moved = tryMove(state.selected, idx);
+    if(moved){
+      state.selected = null;
+      save();
+      render();
+      if(isSolved(state.tubes)){
+        setTimeout(showWin, 350);
+      }
+    } else {
+      flashInvalid(idx);
+      state.selected = state.tubes[idx].length>0 ? idx : null;
+      render();
+    }
+  }
+
+  function showWin(){
+    winMoves.textContent = "Solved in " + state.moves + (state.moves===1 ? " move." : " moves.");
+    winModal.classList.remove("hidden");
+  }
+
+  document.getElementById("nextBtn").addEventListener("click", function(){
+    winModal.classList.add("hidden");
+    newLevel(state.level+1);
+  });
+
+  undoBtn.addEventListener("click", function(){
+    if(state.history.length===0) return;
+    state.tubes = state.history.pop();
+    state.moves = Math.max(0, state.moves-1);
+    state.selected = null;
+    save();
+    render();
+  });
+
+  function restartLevel(){
+    state.tubes = deepClone(state.initial);
+    state.history = [];
+    state.moves = 0;
+    state.selected = null;
+    save();
+    render();
+  }
+  document.getElementById("restartBtn").addEventListener("click", restartLevel);
+  document.getElementById("restartBtn2").addEventListener("click", restartLevel);
+
+  document.getElementById("addTubeBtn").addEventListener("click", function(){
+    if(state.tubes.length>=16) return;
+    state.tubes.push([]);
+    save();
+    render();
+  });
+
+  document.getElementById("newBtn").addEventListener("click", function(){
+    newLevel(state.level);
+  });
+
+  document.getElementById("helpBtn").addEventListener("click", function(){
+    helpModal.classList.remove("hidden");
+  });
+  document.getElementById("closeHelp").addEventListener("click", function(){
+    helpModal.classList.add("hidden");
+  });
+
+  if(!load()){
+    newLevel(1);
+  } else {
+    render();
+  }
+})();
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  });
+}
+</script>
+</body>
+</html>

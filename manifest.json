@@ -1,0 +1,9 @@
+{
+  "name": "Ball Sort",
+  "short_name": "Ball Sort",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#142633",
+  "theme_color": "#1c3547"
+}
