@@ -53,6 +53,18 @@
   }
   .icon-btn:active{background:rgba(255,255,255,0.2);}
 
+  .mode-bar{
+    display:flex; justify-content:center; gap:8px;
+    padding:0 16px 8px;
+    flex-shrink:0;
+  }
+  .mode-btn{
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15);
+    color:var(--muted); font-size:12.5px; font-weight:700;
+    padding:6px 16px; border-radius:20px; cursor:pointer;
+  }
+  .mode-btn.active{ background:#fff; color:#173040; border-color:#fff; }
+
   #board{
     flex:1;
     display:grid;
@@ -162,6 +174,11 @@
     <div class="stat">Moves<b id="moveNum">0</b></div>
     <button class="icon-btn" id="restartBtn">&#8635;</button>
   </header>
+
+  <div class="mode-bar">
+    <div class="mode-btn" id="mode14" data-mode="14">14 tubes</div>
+    <div class="mode-btn" id="mode16" data-mode="16">16 tubes</div>
+  </div>
 
   <main id="board"></main>
 
@@ -321,27 +338,27 @@
     return false;
   }
 
-  function generateSolvableTubes(numColors, emptyCount){
+  function generateSolvableTubes(numColors, filledCount, emptyCount){
     for(var attempt=0; attempt<80; attempt++){
-      var tubes = dealRandomTubes(numColors, FILLED_TUBES, emptyCount);
-      if(!isSolved(tubes) && isSolvable(tubes, 4000)) return tubes;
+      var tubes = dealRandomTubes(numColors, filledCount, emptyCount);
+      if(!isSolved(tubes) && isSolvable(tubes, 6000)) return tubes;
     }
     // Extremely unlikely fallback: just hand back the last deal.
-    return dealRandomTubes(numColors, FILLED_TUBES, emptyCount);
+    return dealRandomTubes(numColors, filledCount, emptyCount);
   }
 
-  var TOTAL_TUBES = 14;
-  var FILLED_TUBES = 12;
-  var NUM_COLORS = 12;
+  var EMPTY_TUBES = 2;
+  var TUBE_MODE = 14; // total tubes: 14 or 16 (always EMPTY_TUBES of them start empty)
 
   function paramsForLevel(level){
-    return {numColors:NUM_COLORS, emptyTubes:TOTAL_TUBES - FILLED_TUBES};
+    var filled = TUBE_MODE - EMPTY_TUBES;
+    return {numColors:filled, filledTubes:filled, emptyTubes:EMPTY_TUBES};
   }
 
   function newLevel(levelNum){
     var p = paramsForLevel(levelNum);
     state.level = levelNum;
-    state.tubes = generateSolvableTubes(p.numColors, p.emptyTubes);
+    state.tubes = generateSolvableTubes(p.numColors, p.filledTubes, p.emptyTubes);
     state.initial = deepClone(state.tubes);
     state.history = [];
     state.selected = null;
@@ -350,10 +367,26 @@
     render();
   }
 
+  function updateModeButtons(){
+    document.getElementById("mode14").classList.toggle("active", TUBE_MODE===14);
+    document.getElementById("mode16").classList.toggle("active", TUBE_MODE===16);
+  }
+
+  function setMode(mode){
+    if(mode!==TUBE_MODE){
+      TUBE_MODE = mode;
+      updateModeButtons();
+      newLevel(1);
+    }
+  }
+
+  document.getElementById("mode14").addEventListener("click", function(){ setMode(14); });
+  document.getElementById("mode16").addEventListener("click", function(){ setMode(16); });
+
   function save(){
     try{
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        level:state.level, tubes:state.tubes, initial:state.initial, moves:state.moves
+        level:state.level, tubes:state.tubes, initial:state.initial, moves:state.moves, tubeMode:TUBE_MODE
       }));
     }catch(e){}
   }
@@ -370,6 +403,7 @@
       state.moves = data.moves || 0;
       state.history = [];
       state.selected = null;
+      TUBE_MODE = (data.tubeMode===16) ? 16 : 14;
       return true;
     }catch(e){ return false; }
   }
@@ -509,7 +543,7 @@
   document.getElementById("restartBtn2").addEventListener("click", restartLevel);
 
   document.getElementById("addTubeBtn").addEventListener("click", function(){
-    if(state.tubes.length>=16) return;
+    if(state.tubes.length>=TUBE_MODE+4) return;
     state.tubes.push([]);
     save();
     render();
@@ -531,6 +565,7 @@
   } else {
     render();
   }
+  updateModeButtons();
 })();
 
 if("serviceWorker" in navigator){
